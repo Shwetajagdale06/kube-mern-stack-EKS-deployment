@@ -32,6 +32,16 @@ function App() {
       </ul>
     </div>
   );
+  return (
+    <div className="App">
+      <h1>🚀 Deployed via GitHub Actions to AWS EKS!</h1>
+    </div>
+  );
+}
+
+
+
+
 }
 
 export default App;
