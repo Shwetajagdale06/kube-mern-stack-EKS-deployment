@@ -4,6 +4,7 @@ metadata:
   name: postgres-pvc
 spec:
   accessModes: ["ReadWriteOnce"]
+  storageClassName: gp2
   resources:
     requests:
       storage: 1Gi
