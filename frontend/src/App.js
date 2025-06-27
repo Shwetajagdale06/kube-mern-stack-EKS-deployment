@@ -22,7 +22,7 @@ function App() {
 
   return (
     <div>
-      <h1>Add User...🚀 Deployed via GitHub Actions to AWS EKS.....</h1>
+      <h1>Add User...</h1>
       <input value={name} onChange={e => setName(e.target.value)} />
       <button onClick={addUser}>Add</button>
       <ul>
