@@ -4,6 +4,7 @@ metadata:
   name: postgres-pvc
 spec:
   accessModes: ["ReadWriteOnce"]
+  storageClassName: gp2
   resources:
     requests:
       storage: 1Gi
@@ -37,10 +38,18 @@ spec:
           volumeMounts:
             - mountPath: /docker-entrypoint-initdb.d
               name: init-volume
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-storage
+
       volumes:
         - name: init-volume
           configMap:
             name: init-sql
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+
 ---
 apiVersion: v1
 kind: ConfigMap
