@@ -41,6 +41,8 @@ jobs:
         sed -i "s|image:.*backend.*|image: ${{ secrets.ECR_REPO_BACKEND }}:${{ env.IMAGE_TAG }}|" k8s/backend-deployment.yaml
 
     - name: Commit Updated YAMLs to Git
+      env:
+        PAT: ${{ secrets.GH_PAT }}
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
