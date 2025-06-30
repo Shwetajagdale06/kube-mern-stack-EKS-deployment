@@ -9,11 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
-      FRONTEND_REPO: ${{ secrets.ECR_REPO_FRONTEND }}
-      BACKEND_REPO: ${{ secrets.ECR_REPO_BACKEND }}
-      IMAGE_TAG: ${{ github.sha }}  # use commit SHA for versioning
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
     - name: Checkout source code
@@ -24,40 +20,39 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build and push Frontend image
+    - name: Build and Push Frontend Image
       run: |
-        docker build -t $FRONTEND_REPO:$IMAGE_TAG ./frontend
-        docker push $FRONTEND_REPO:$IMAGE_TAG
+        docker build -t ${{ secrets.ECR_REPO_FRONTEND }}:${{ env.IMAGE_TAG }} ./frontend
+        docker push ${{ secrets.ECR_REPO_FRONTEND }}:${{ env.IMAGE_TAG }}
 
-    - name: Build and push Backend image
+    - name: Build and Push Backend Image
       run: |
-        docker build -t $BACKEND_REPO:$IMAGE_TAG ./backend
-        docker push $BACKEND_REPO:$IMAGE_TAG
+        docker build -t ${{ secrets.ECR_REPO_BACKEND }}:${{ env.IMAGE_TAG }} ./backend
+        docker push ${{ secrets.ECR_REPO_BACKEND }}:${{ env.IMAGE_TAG }}
 
+    - name: Patch Image Tag in Deployment YAMLs
+      run: |
+        sed -i "s|image:.*frontend.*|image: ${{ secrets.ECR_REPO_FRONTEND }}:${{ env.IMAGE_TAG }}|" k8s/frontend-deployment.yaml
+        sed -i "s|image:.*backend.*|image: ${{ secrets.ECR_REPO_BACKEND }}:${{ env.IMAGE_TAG }}|" k8s/backend-deployment.yaml
+
+    - name: Commit Updated YAMLs to Git
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add k8s/*.yaml
+        git commit -m "Update image tags to ${{ env.IMAGE_TAG }}"
+        git push
+
+    # Optional (for backup)
     - name: Update kubeconfig for EKS
       run: |
-        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+        aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.CLUSTER_NAME }}
 
-    - name: Patch frontend deployment with new image
-      run: |
-        kubectl set image deployment/frontend frontend=$FRONTEND_REPO:$IMAGE_TAG
-
-    - name: Patch backend deployment with new image
-      run: |
-        kubectl set image deployment/backend backend=$BACKEND_REPO:$IMAGE_TAG
-
-    - name: Apply Kubernetes manifests
+    - name: Apply Kubernetes YAMLs (optional if ArgoCD is auto-syncing)
       run: |
         kubectl apply -f ./k8s/
-
-    - name: Restart frontend deployment
-      run: |
-        kubectl rollout restart deployment/frontend
