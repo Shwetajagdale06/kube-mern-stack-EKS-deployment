@@ -8,6 +8,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+      FRONTEND_REPO: ${{ secrets.ECR_REPO_FRONTEND }}
+      BACKEND_REPO: ${{ secrets.ECR_REPO_BACKEND }}
+      IMAGE_TAG: ${{ github.sha }}  # use commit SHA for versioning
+
     steps:
     - name: Checkout source code
       uses: actions/checkout@v3
@@ -17,10 +24,9 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
-      id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
     - name: Set up Docker Buildx
@@ -28,26 +34,30 @@ jobs:
 
     - name: Build and push Frontend image
       run: |
-        IMAGE_URI=${{ secrets.ECR_REPO_FRONTEND }}:latest
-        docker build -t $IMAGE_URI ./frontend
-        docker push $IMAGE_URI
+        docker build -t $FRONTEND_REPO:$IMAGE_TAG ./frontend
+        docker push $FRONTEND_REPO:$IMAGE_TAG
+
     - name: Build and push Backend image
       run: |
-        IMAGE_URI=${{ secrets.ECR_REPO_BACKEND }}:latest
-        docker build -t $IMAGE_URI ./backend
-        docker push $IMAGE_URI
+        docker build -t $BACKEND_REPO:$IMAGE_TAG ./backend
+        docker push $BACKEND_REPO:$IMAGE_TAG
+
     - name: Update kubeconfig for EKS
       run: |
-        aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.CLUSTER_NAME }}
-    - name: Update frontend image in deployment
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+    - name: Patch frontend deployment with new image
       run: |
-         kubectl set image deployment/frontend frontend=$FRONTEND_REPO:$IMAGE_TAG
-    - name: Update backend image in deployment
+        kubectl set image deployment/frontend frontend=$FRONTEND_REPO:$IMAGE_TAG
+
+    - name: Patch backend deployment with new image
       run: |
         kubectl set image deployment/backend backend=$BACKEND_REPO:$IMAGE_TAG
-    - name: Deploy to EKS
+
+    - name: Apply Kubernetes manifests
       run: |
         kubectl apply -f ./k8s/
+
     - name: Restart frontend deployment
       run: |
         kubectl rollout restart deployment/frontend
